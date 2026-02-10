@@ -1,0 +1,1 @@
+# Nơi chứa file .pt, .onnx, .bin (Mount volume vào docker)

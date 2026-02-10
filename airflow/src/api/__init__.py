@@ -1,0 +1,1 @@
+# chứa các API Flask của 3 mô đun chính: Preprocessing, Recognition, Postprocessing
