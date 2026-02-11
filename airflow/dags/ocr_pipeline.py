@@ -5,6 +5,8 @@ from datetime import timedelta
 from airflow.decorators import dag, task
 import pendulum
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # --- CẤU HÌNH ĐƯỜNG DẪN IMPORT ---
 # Thêm thư mục cha vào sys.path để import được file config.py nằm ngoài folder dags
@@ -43,17 +45,32 @@ default_args = {
 def ocr_pipeline():
 
     # --- HÀM HELPER ĐỂ GỌI API ---
+    def get_retry_session():
+        """Tạo requests session với retry logic"""
+        session = requests.Session()
+        retry = Retry(
+            total=3,  # Retry tối đa 3 lần
+            backoff_factor=1,  # Đợi 1s, 2s, 4s giữa các lần retry
+            status_forcelist=[500, 502, 503, 504],  # Retry khi gặp server errors
+            allowed_methods=["POST", "GET"]
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        return session
+    
     def call_api_step(url_base, endpoint, payload, task_name):
-        """Hàm chung để gọi API và xử lý lỗi cơ bản"""
+        """Hàm chung để gọi API và xử lý lỗi cơ bản với retry"""
         full_url = f"{url_base}/{endpoint}"
         logging.info(f"[{task_name}] Calling: {full_url} with payload: {payload}")
         
         try:
-            response = requests.post(full_url, json=payload, timeout=300) # Timeout 5 phút cho model nặng
+            session = get_retry_session()
+            response = session.post(full_url, json=payload, timeout=300) # Timeout 5 phút cho model nặng
             response.raise_for_status() # Báo lỗi nếu status != 200
             return response.json()
         except requests.exceptions.RequestException as e:
-            logging.error(f"[{task_name}] Failed: {str(e)}")
+            logging.error(f"[{task_name}] Failed after retries: {str(e)}")
             raise e
 
     # --- TASK 1: TIỀN XỬ LÝ (PREPROCESSING) ---
@@ -62,7 +79,7 @@ def ocr_pipeline():
         # 1. Lấy thông tin từ Trigger Configuration
         conf = context['dag_run'].conf
         image_path = conf.get('image_path')
-        model_name = conf.get('preprocess_model', 'default_binarize') # Mặc định nếu không gửi
+        model_name = conf.get('preprocess_model', 'ssd_mobilenet_v2')
         
         if not image_path:
             raise ValueError("Thiếu tham số 'image_path' trong cấu hình Trigger!")
@@ -70,7 +87,7 @@ def ocr_pipeline():
         # 2. Bước Load Model (Nếu chưa load)
         call_api_step(settings.PREPROC_URL, "load_model", {"model_name": model_name}, "Preproc-Load")
         
-        # 3. Bước Xử lý ảnh
+        # 3. Bước Xử lý ảnh (detection)
         result = call_api_step(
             settings.PREPROC_URL, 
             "process", 
@@ -79,28 +96,39 @@ def ocr_pipeline():
         )
         
         logging.info(f"Preprocessing Output: {result}")
-        # Trả về image_path để task sau dùng (hoặc output_path nếu có)
-        return result.get('output_path') or image_path
+        
+        # Trả về detection data để task sau dùng
+        return {
+            "image_path": image_path,
+            "detection_data": result.get('data')
+        }
 
     # --- TASK 2: NHẬN DIỆN (RECOGNITION) ---
     @task(task_id="recognition_step")
-    def recognize_text(cleaned_image_path, **context):
+    def recognize_text(preprocess_result, **context):
         conf = context['dag_run'].conf
-        model_name = conf.get('recognition_model', 'trocr_base')
+        model_name = conf.get('recognition_model', 'easyocr_vi_en')
+        
+        image_path = preprocess_result['image_path']
+        detection_data = preprocess_result['detection_data']
         
         # 1. Load Model
         call_api_step(settings.RECOG_URL, "load_model", {"model_name": model_name}, "Recog-Load")
         
-        # 2. Dự đoán (Predict)
+        # 2. Dự đoán (Predict) - truyền cả detection_data
         result = call_api_step(
             settings.RECOG_URL, 
             "predict", 
-            {"image_path": cleaned_image_path, "model_name": model_name}, 
+            {
+                "image_path": image_path,
+                "model_name": model_name,
+                "detection_data": detection_data
+            }, 
             "Recog-Exec"
         )
         
         logging.info(f"Recognition Output: {result}")
-        # Trả về data hoặc một placeholder để task sau có thể xử lý
+        # Trả về data để task sau có thể xử lý
         return result.get('data')
 
     # --- TASK 3: HẬU XỬ LÝ (POSTPROCESSING) ---
@@ -122,6 +150,22 @@ def ocr_pipeline():
         
         logging.info(f"FINAL RESULT: {result}")
         return result
+    
+    # --- TASK 4: DỌN DẸP ẢNH SAU KHI XỬ LÝ XONG ---
+    @task(task_id="cleanup_step", trigger_rule="all_done")
+    def cleanup_uploaded_image(**context):
+        """Xóa ảnh đã upload để tránh đầy ổ đĩa"""
+        conf = context['dag_run'].conf
+        image_path = conf.get('image_path')
+        
+        if image_path and os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+                logging.info(f"✓ Đã xóa file: {image_path}")
+            except Exception as e:
+                logging.warning(f"Không thể xóa file {image_path}: {str(e)}")
+        else:
+            logging.warning(f"File không tồn tại hoặc chưa được chỉ định: {image_path}")
 
     # --- ĐỊNH NGHĨA LUỒNG DỮ LIỆU (DATA FLOW) ---
     
@@ -133,6 +177,10 @@ def ocr_pipeline():
     
     # Task 3 chạy -> Ra kết quả cuối cùng
     final_output = post_process(step2_output)
+    
+    # Task 4 cleanup (chạy sau task 3, dù thành công hay thất bại)
+    cleanup_task = cleanup_uploaded_image()
+    final_output >> cleanup_task
 
 # Khởi tạo DAG
 ocr_dag = ocr_pipeline()

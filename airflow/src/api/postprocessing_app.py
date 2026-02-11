@@ -2,14 +2,16 @@
 from flask import Flask, request, jsonify
 import sys
 import os
+import threading
 
 # Thêm đường dẫn cha để import được src.core
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 app = Flask(__name__)
 
-# KHO CHỨA LOGIC/RULES TRONG RAM (Global Variable)
+# KHO CHỨA LOGIC/RULES TRONG RAM (Global Variable) - Thread-safe
 active_models = {}
+models_lock = threading.Lock()  # Prevent race conditions
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -22,12 +24,13 @@ def load_model():
     config = request.json
     model_name = config.get('model_name', 'regex_invoice_vn')
     
-    if model_name in active_models:
-        return jsonify({"status": "already_loaded", "model": model_name})
-    
-    # TODO: Nạp rules thật khi cần
-    # Hiện tại chỉ lưu tên model vào RAM
-    active_models[model_name] = {"loaded": True, "type": "postprocessing", "rules": []}
+    with models_lock:
+        if model_name in active_models:
+            return jsonify({"status": "already_loaded", "model": model_name})
+        
+        # TODO: Nạp rules thật khi cần
+        # Hiện tại chỉ lưu tên model vào RAM
+        active_models[model_name] = {"loaded": True, "type": "postprocessing", "rules": []}
     
     return jsonify({"status": "loaded", "model": model_name})
 
@@ -58,12 +61,17 @@ def process():
 def unload_model():
     """Giải phóng RAM sau khi chạy xong"""
     model_name = request.json.get('model_name')
-    if model_name in active_models:
-        del active_models[model_name]
-        import gc
-        gc.collect()
-        return jsonify({"status": "unloaded", "model": model_name})
-    return jsonify({"status": "not_found", "model": model_name})
+    
+    if model_name not in active_models:
+        return jsonify({"status": "not_found", "model": model_name})
+    
+    with models_lock:
+        if model_name in active_models:
+            del active_models[model_name]
+    
+    import gc
+    gc.collect()
+    return jsonify({"status": "unloaded", "model": model_name})
 
 if __name__ == '__main__':
     print("🚀 Starting Postprocessing API on port 5002...")

@@ -1,0 +1,8 @@
+# SSD MobileNet V2 COCO Configuration
+# Compatible with OpenCV DNN module
+
+input: "image_tensor"
+output: "detection_boxes"
+output: "detection_scores"
+output: "detection_classes"
+output: "num_detections"

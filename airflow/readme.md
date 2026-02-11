@@ -2,10 +2,23 @@
 
 Hệ thống OCR 3 tầng được quản lý bởi Apache Airflow, gồm:
 1. **Frontend UI** (Port 8501): Giao diện người dùng đơn giản (Streamlit)
-2. **API Preprocessing** (Port 5000): Tiền xử lý ảnh
-3. **API Recognition** (Port 5001): Nhận dạng text từ ảnh
+2. **API Preprocessing** (Port 5000): Phát hiện vùng text với SSD MobileNet V2
+3. **API Recognition** (Port 5001): Nhận diện text với EasyOCR (Vi + En)
 4. **API Postprocessing** (Port 5002): Hậu xử lý và trích xuất thông tin
 5. **Airflow** (Port 8080): Quản lý pipeline workflow (dành cho admin)
+
+## � Tài liệu quan trọng
+
+- **[DOCKER_USAGE.md](DOCKER_USAGE.md)**: Hướng dẫn sử dụng Docker - Tránh download lại models
+- **[weights/readme.md](weights/readme.md)**: Thông tin về model weights và cách cache
+- **[API_SCHEMA.md](API_SCHEMA.md)**: Cấu trúc JSON API responses
+
+## 🚀 Models đã tích hợp
+
+- **SSD MobileNet V2**: Object detection để phát hiện vùng chứa text → Trả về bounding boxes
+- **EasyOCR**: Nhận diện text tiếng Việt + Anh trong các vùng đã detect → Trả về text + confidence
+
+→ **LƯU Ý**: Models tự động cache, không cần download lại khi restart Docker! Xem [DOCKER_USAGE.md](DOCKER_USAGE.md)
 
 ## Kiến trúc
 
@@ -170,13 +183,16 @@ cleaned_image.jpg     raw_ocr.json         final_result.json
 
 ## Roadmap
 
-- [ ] Triển khai base model classes
-- [ ] Thêm model preprocessing thật
-- [ ] Thêm model recognition (YOLO/TrOCR)
-- [ ] Thêm logic postprocessing (regex, rules)
+- [x] Triển khai SSD MobileNet V2 cho object detection
+- [x] Triển khai EasyOCR cho text recognition (Vi + En)
 - [ ] Thêm model weights vào thư mục weights/
+- [ ] Triển khai logic postprocessing (regex, rules)
+- [ ] Tối ưu performance với GPU
+- [ ] Thêm batch processing
+- [ ] Deploy production
 - [ ] Thêm sample data vào thư mục data/
 
+docker-compose down
 # Xóa cache build cũ (optional nhưng khuyến nghị)
 docker-compose build --no-cache
 # Sau đó khởi động

@@ -371,6 +371,7 @@ services:
       - ./weights:/weights
       - ./data:/data
       - ./config.py:/app/config.py
+      - easyocr-models:/root/.EasyOCR  # Cache persistent cho EasyOCR models
     environment:
       - PYTHONPATH=/app
       - FLASK_ENV=development
@@ -429,3 +430,4 @@ services:
 
 volumes:
   postgres-db-volume:
+  easyocr-models:  # Persistent storage cho EasyOCR models (tránh download lại)

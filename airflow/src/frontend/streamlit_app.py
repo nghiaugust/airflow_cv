@@ -16,6 +16,12 @@ AIRFLOW_URL = "http://airflow-apiserver:8080"
 AIRFLOW_USER = "airflow"
 AIRFLOW_PASS = "airflow"
 DATA_DIR = "/data"
+MAX_FILE_SIZE_MB = 10  # Giới hạn file upload 10MB
+
+# API URLs - Phải khớp với service name trong docker-compose.yaml
+PREPROCESS_API = "http://api-preprocessing:5000"
+RECOGNITION_API = "http://api-recognition:5001"
+POSTPROCESS_API = "http://api-postprocessing:5002"
 
 # Cấu hình trang
 st.set_page_config(
@@ -79,30 +85,198 @@ def get_task_logs(dag_run_id, task_id):
     except:
         return None
 
+def load_model_api(service_url, model_name, config=None):
+    """Gọi API để load model vào RAM"""
+    url = f"{service_url}/load_model"
+    payload = {"model_name": model_name}
+    if config:
+        payload.update(config)
+    
+    try:
+        response = requests.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def unload_model_api(service_url, model_name):
+    """Gọi API để unload model khỏi RAM"""
+    url = f"{service_url}/unload_model"
+    
+    try:
+        response = requests.post(url, json={"model_name": model_name}, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def check_api_health(service_url):
+    """Kiểm tra API service có hoạt động không"""
+    try:
+        response = requests.get(f"{service_url}/health", timeout=3)
+        return response.status_code == 200
+    except:
+        return False
+
 # Header
 st.title("Hệ thống OCR Tự động")
 st.markdown("### Upload ảnh hóa đơn/tài liệu và nhận kết quả trích xuất thông tin")
+
+# Initialize session state
+if "loaded_models" not in st.session_state:
+    st.session_state.loaded_models = {
+        "preprocess": None,
+        "recognition": None,
+        "postprocess": None
+    }
+
+# Section: Quản lý Models
+with st.expander("⚙️ Quản lý Models (Load/Unload)", expanded=False):
+    st.markdown("**Nạp models vào RAM trước khi xử lý để tăng tốc độ**")
+    
+    col_model1, col_model2, col_model3 = st.columns(3)
+    
+    # Detection Model
+    with col_model1:
+        st.markdown("**Detection Model**")
+        detection_choice = st.selectbox(
+            "Chọn model",
+            ["ssd_mobilenet_v2", "yolov5", "faster_rcnn"],
+            key="detection_choice"
+        )
+        
+        is_loaded = st.session_state.loaded_models["preprocess"] == detection_choice
+        
+        if is_loaded:
+            st.success(f"✓ Đã load: {detection_choice}")
+            if st.button("Unload", key="unload_detect"):
+                with st.spinner("Đang unload..."):
+                    result = unload_model_api(PREPROCESS_API, detection_choice)
+                    if "error" not in result:
+                        st.session_state.loaded_models["preprocess"] = None
+                        st.success("Đã unload thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {result['error']}")
+        else:
+            if st.button("Load Model", key="load_detect", type="primary"):
+                with st.spinner(f"Đang load {detection_choice}..."):
+                    config = {
+                        "confidence_threshold": 0.5,
+                        "nms_threshold": 0.4
+                    }
+                    result = load_model_api(PREPROCESS_API, detection_choice, config)
+                    if "error" not in result:
+                        st.session_state.loaded_models["preprocess"] = detection_choice
+                        st.success(f"Đã load {detection_choice} thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {result['error']}")
+    
+    # Recognition Model
+    with col_model2:
+        st.markdown("**Recognition Model**")
+        recognition_choice = st.selectbox(
+            "Chọn model",
+            ["easyocr_vi_en", "trocr_base", "paddleocr"],
+            key="recognition_choice"
+        )
+        
+        is_loaded = st.session_state.loaded_models["recognition"] == recognition_choice
+        
+        if is_loaded:
+            st.success(f"✓ Đã load: {recognition_choice}")
+            if st.button("Unload", key="unload_recog"):
+                with st.spinner("Đang unload..."):
+                    result = unload_model_api(RECOGNITION_API, recognition_choice)
+                    if "error" not in result:
+                        st.session_state.loaded_models["recognition"] = None
+                        st.success("Đã unload thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {result['error']}")
+        else:
+            if st.button("Load Model", key="load_recog", type="primary"):
+                with st.spinner(f"Đang load {recognition_choice}..."):
+                    config = {
+                        "languages": ["vi", "en"],
+                        "gpu": False
+                    }
+                    result = load_model_api(RECOGNITION_API, recognition_choice, config)
+                    if "error" not in result:
+                        st.session_state.loaded_models["recognition"] = recognition_choice
+                        st.success(f"Đã load {recognition_choice} thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {result['error']}")
+    
+    # Postprocess Model
+    with col_model3:
+        st.markdown("**Postprocess Model**")
+        postprocess_choice = st.selectbox(
+            "Chọn model",
+            ["regex_invoice_vn", "regex_invoice_en", "llm_extract"],
+            key="postprocess_choice"
+        )
+        
+        is_loaded = st.session_state.loaded_models["postprocess"] == postprocess_choice
+        
+        if is_loaded:
+            st.success(f"✓ Đã load: {postprocess_choice}")
+            if st.button("Unload", key="unload_post"):
+                with st.spinner("Đang unload..."):
+                    result = unload_model_api(POSTPROCESS_API, postprocess_choice)
+                    if "error" not in result:
+                        st.session_state.loaded_models["postprocess"] = None
+                        st.success("Đã unload thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {result['error']}")
+        else:
+            if st.button("Load Model", key="load_post", type="primary"):
+                with st.spinner(f"Đang load {postprocess_choice}..."):
+                    result = load_model_api(POSTPROCESS_API, postprocess_choice)
+                    if "error" not in result:
+                        st.session_state.loaded_models["postprocess"] = postprocess_choice
+                        st.success(f"Đã load {postprocess_choice} thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi: {result['error']}")
+    
+    st.markdown("---")
+    st.caption("Load model trước sẽ giúp tăng tốc độ xử lý vì model đã nằm sẵn trong RAM")
+
+st.markdown("---")
 
 # Sidebar - Cấu hình
 with st.sidebar:
     st.header("Cấu hình")
     
     preprocess_model = st.selectbox(
-        "Model tiền xử lý",
-        ["Không", "default_binarize", "advanced_denoise", "adaptive_threshold"],
-        index=0
+        "Model tiền xử lý (Detection)",
+        ["Không", "ssd_mobilenet_v2", "yolov5", "faster_rcnn"],
+        index=0,
+        help="SSD MobileNet V2: Phát hiện vùng text và trả về tọa độ"
     )
     
     recognition_model = st.selectbox(
-        "Model nhận dạng",
-        ["Không", "trocr_base", "trocr_large", "easyocr_vn", "paddleocr"],
-        index=0
+        "Model nhận diện (OCR)",
+        ["Không", "easyocr_vi_en", "trocr_base", "paddleocr"],
+        index=0,
+        help="EasyOCR: Nhận diện text tiếng Việt + tiếng Anh trong các vùng detected"
     )
     
     postprocess_model = st.selectbox(
         "Model hậu xử lý",
         ["Không", "regex_invoice_vn", "regex_invoice_en", "llm_extract"],
-        index=0
+        index=0,
+        help="Trích xuất thông tin có cấu trúc từ text đã nhận dạng"
     )
     
     st.markdown("---")
@@ -121,41 +295,55 @@ with col1:
     )
     
     if uploaded_file:
-        # Hiển thị ảnh preview
-        st.image(uploaded_file, caption="Ảnh đã upload", use_column_width=True)
-        
-        # Lưu file vào /data
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"upload_{timestamp}_{uploaded_file.name}"
-        filepath = os.path.join(DATA_DIR, filename)
-        
-        with open(filepath, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        
-        st.success(f"Đã lưu: {filename}")
-        
-        # Nút xử lý
-        if st.button("Bắt đầu xử lý OCR", type="primary"):
-            # Kiểm tra nếu không chọn model nào
-            if preprocess_model == "Không" and recognition_model == "Không" and postprocess_model == "Không":
-                st.session_state.no_model_selected = True
-                st.session_state.processing = False
-                st.rerun()
-            else:
-                config = {
-                    "preprocess_model": preprocess_model if preprocess_model != "Không" else "default_binarize",
-                    "recognition_model": recognition_model if recognition_model != "Không" else "trocr_base",
-                    "postprocess_model": postprocess_model if postprocess_model != "Không" else "regex_invoice_vn"
-                }
-                
-                with st.spinner("Đang gửi yêu cầu đến Airflow..."):
-                    result = trigger_airflow_dag(filename, config)
+        # Kiểm tra kích thước file
+        file_size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
+        if file_size_mb > MAX_FILE_SIZE_MB:
+            st.error(f"❌ File quá lớn! ({file_size_mb:.2f}MB). Giới hạn: {MAX_FILE_SIZE_MB}MB")
+        else:
+            # Hiển thị ảnh preview
+            st.image(uploaded_file, caption="Ảnh đã upload", use_column_width=True)
+            st.caption(f"Kích thước: {file_size_mb:.2f}MB")
             
-            if result:
-                dag_run_id = result.get("dag_run_id")
-                st.session_state.dag_run_id = dag_run_id
-                st.session_state.processing = True
-                st.rerun()
+            # Lưu file vào /data
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"upload_{timestamp}_{uploaded_file.name}"
+            filepath = os.path.join(DATA_DIR, filename)
+            
+            with open(filepath, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            st.success(f"✓ Đã lưu: {filename}")
+        
+            # Nút xử lý
+            if st.button("Bắt đầu xử lý OCR", type="primary"):
+                # Kiểm tra nếu không chọn model nào
+                if preprocess_model == "Không" and recognition_model == "Không" and postprocess_model == "Không":
+                    st.session_state.no_model_selected = True
+                    st.session_state.processing = False
+                    st.rerun()
+                else:
+                    # Sử dụng models đã load hoặc chọn từ sidebar
+                    selected_preprocess = st.session_state.loaded_models["preprocess"] or (preprocess_model if preprocess_model != "Không" else "ssd_mobilenet_v2")
+                    selected_recognition = st.session_state.loaded_models["recognition"] or (recognition_model if recognition_model != "Không" else "easyocr_vi_en")
+                    selected_postprocess = st.session_state.loaded_models["postprocess"] or (postprocess_model if postprocess_model != "Không" else "regex_invoice_vn")
+                    
+                    config = {
+                        "preprocess_model": selected_preprocess,
+                        "recognition_model": selected_recognition,
+                        "postprocess_model": selected_postprocess
+                    }
+                    
+                    # Hiển thị thông báo về models sẽ được sử dụng
+                    st.info(f"Sử dụng models: {selected_preprocess} → {selected_recognition} → {selected_postprocess}")
+                    
+                    with st.spinner("Đang gửi yêu cầu đến Airflow..."):
+                        result = trigger_airflow_dag(filename, config)
+            
+                if result:
+                    dag_run_id = result.get("dag_run_id")
+                    st.session_state.dag_run_id = dag_run_id
+                    st.session_state.processing = True
+                    st.rerun()
 
 with col2:
     st.subheader("Kết quả")
