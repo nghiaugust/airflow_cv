@@ -175,3 +175,7 @@ cleaned_image.jpg     raw_ocr.json         final_result.json
 - [ ] Thêm model weights vào thư mục weights/
 - [ ] Thêm sample data vào thư mục data/
 
+# Xóa cache build cũ (optional nhưng khuyến nghị)
+docker-compose build --no-cache
+# Sau đó khởi động
+docker-compose up -d

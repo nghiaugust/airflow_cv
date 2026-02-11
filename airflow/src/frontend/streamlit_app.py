@@ -120,7 +120,7 @@ with col1:
     
     if uploaded_file:
         # Hiển thị ảnh preview
-        st.image(uploaded_file, caption="Ảnh đã upload", use_container_width=True)
+        st.image(uploaded_file, caption="Ảnh đã upload", use_column_width=True)
         
         # Lưu file vào /data
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -133,7 +133,7 @@ with col1:
         st.success(f"✅ Đã lưu: {filename}")
         
         # Nút xử lý
-        if st.button("🚀 Bắt đầu xử lý OCR", type="primary", use_container_width=True):
+        if st.button("🚀 Bắt đầu xử lý OCR", type="primary", use_column_width=True):
             config = {
                 "preprocess_model": preprocess_model,
                 "recognition_model": recognition_model,
