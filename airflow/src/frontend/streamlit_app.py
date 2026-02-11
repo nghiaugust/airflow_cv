@@ -31,7 +31,7 @@ st.set_page_config(
 
 def trigger_airflow_dag(image_filename, config):
     """Trigger Airflow DAG qua REST API"""
-    url = f"{AIRFLOW_URL}/api/v1/dags/ocr_system_pipeline_v2/dagRuns"
+    url = f"{AIRFLOW_URL}/api/v2/dags/ocr_system_pipeline_v2/dagRuns"
     
     # Airflow 3.x yêu cầu dag_run_id
     import random
@@ -63,7 +63,7 @@ def trigger_airflow_dag(image_filename, config):
 
 def get_dag_run_status(dag_run_id):
     """Kiểm tra trạng thái DAG run"""
-    url = f"{AIRFLOW_URL}/api/v1/dags/ocr_system_pipeline_v2/dagRuns/{dag_run_id}"
+    url = f"{AIRFLOW_URL}/api/v2/dags/ocr_system_pipeline_v2/dagRuns/{dag_run_id}"
     
     try:
         response = requests.get(
@@ -78,7 +78,7 @@ def get_dag_run_status(dag_run_id):
 
 def get_task_logs(dag_run_id, task_id):
     """Lấy logs của task cụ thể"""
-    url = f"{AIRFLOW_URL}/api/v1/dags/ocr_system_pipeline_v2/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/1"
+    url = f"{AIRFLOW_URL}/api/v2/dags/ocr_system_pipeline_v2/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/1"
     
     try:
         response = requests.get(
