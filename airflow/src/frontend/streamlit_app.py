@@ -12,7 +12,7 @@ from pathlib import Path
 import json
 
 # Cấu hình
-AIRFLOW_URL = "http://airflow-webserver:8080"
+AIRFLOW_URL = "http://airflow-apiserver:8080"
 AIRFLOW_USER = "airflow"
 AIRFLOW_PASS = "airflow"
 DATA_DIR = "/data"

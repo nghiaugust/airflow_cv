@@ -416,7 +416,7 @@ services:
       - PYTHONPATH=/app
     restart: always
     depends_on:
-      - airflow-webserver
+      - airflow-apiserver
       - api-preprocessing
       - api-recognition
       - api-postprocessing
