@@ -37,8 +37,8 @@ def load_model():
     try:
         if model_name == 'ssd_mobilenet_v2' or model_name == 'ssd':
             # Khởi tạo SSD MobileNet V2
-            model_path = config.get('model_path', 'weights/ssd_mobilenet_v2_coco.pb')
-            config_path = config.get('config_path', 'weights/ssd_mobilenet_v2_coco.pbtxt')
+            model_path = config.get('model_path', '/weights/ssd_mobilenet_v2_coco.pb')
+            config_path = config.get('config_path', '/weights/ssd_mobilenet_v2_coco.pbtxt')
             confidence_threshold = config.get('confidence_threshold', 0.5)
             nms_threshold = config.get('nms_threshold', 0.4)
             
