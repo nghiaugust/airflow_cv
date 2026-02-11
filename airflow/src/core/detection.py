@@ -16,16 +16,18 @@ class SSDMobileNetDetector:
     SSD MobileNet V2 detector sử dụng OpenCV DNN
     """
     
-    def __init__(self, model_path=None, config_path=None, confidence_threshold=0.5):
+    def __init__(self, model_path=None, config_path=None, confidence_threshold=0.5, nms_threshold=0.4):
         """
         Args:
             model_path: Đường dẫn đến file .pb hoặc .caffemodel
             config_path: Đường dẫn đến file config (.pbtxt hoặc .prototxt)
             confidence_threshold: Ngưỡng confidence để filter detections
+            nms_threshold: Ngưỡng Non-Maximum Suppression để loại bỏ overlapping boxes
         """
         self.model_path = model_path
         self.config_path = config_path
         self.confidence_threshold = confidence_threshold
+        self.nms_threshold = nms_threshold
         self.net = None
         
     def load_model(self):
