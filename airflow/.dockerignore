@@ -1,0 +1,44 @@
+# Bỏ qua các thư mục runtime (sẽ mount vào qua volumes)
+logs/
+data/
+plugins/
+
+# Bỏ qua các thư mục Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Bỏ qua virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Bỏ qua Git
+.git/
+.gitignore
+
+# Bỏ qua IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Bỏ qua Docker files
+.dockerignore
+docker-compose.yaml
+Dockerfile
+
+# Bỏ qua documentation
+*.md
+README.md
+
+# Bỏ qua environment files
+.env
+.env.local
+
+# Bỏ qua OS files
+.DS_Store
+Thumbs.db

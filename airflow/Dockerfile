@@ -7,10 +7,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy toàn bộ source code
-COPY . .
+# Copy source code (logs/, data/, plugins/ sẽ bị loại trừ bởi .dockerignore)
+COPY src/ ./src/
+COPY config.py .
 
-# Tạo thư mục cần thiết
+# Tạo thư mục cần thiết (sẽ được mount từ host)
 RUN mkdir -p /data /weights
 
 # Expose ports (sẽ được overwrite trong docker-compose)
