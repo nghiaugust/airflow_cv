@@ -335,8 +335,6 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-volumes:
-  postgres-db-volume:
 
   # ========================================
   # CUSTOM FLASK API SERVICES
@@ -404,3 +402,6 @@ volumes:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+volumes:
+  postgres-db-volume:
