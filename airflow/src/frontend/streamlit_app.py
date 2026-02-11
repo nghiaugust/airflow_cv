@@ -33,7 +33,13 @@ def trigger_airflow_dag(image_filename, config):
     """Trigger Airflow DAG qua REST API"""
     url = f"{AIRFLOW_URL}/api/v1/dags/ocr_system_pipeline_v2/dagRuns"
     
+    # Airflow 3.x yêu cầu dag_run_id
+    import random
+    import string
+    dag_run_id = f"manual__{int(time.time())}__{''.join(random.choices(string.ascii_lowercase, k=6))}"
+    
     payload = {
+        "dag_run_id": dag_run_id,
         "conf": {
             "image_path": f"/data/{image_filename}",
             "preprocess_model": config.get("preprocess_model", "default_binarize"),
