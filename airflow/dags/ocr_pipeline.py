@@ -3,7 +3,7 @@ import os
 import logging
 from datetime import timedelta
 from airflow.decorators import dag, task
-from airflow.utils.dates import days_ago
+import pendulum
 import requests
 
 # --- CẤU HÌNH ĐƯỜNG DẪN IMPORT ---
@@ -35,8 +35,8 @@ default_args = {
     dag_id='ocr_system_pipeline_v2',
     default_args=default_args,
     description='Pipeline OCR 3 bước: Preprocess -> Recognition -> Postprocess (Dynamic Model Loading)',
-    schedule_interval=None, # Chạy thủ công (Trigger)
-    start_date=days_ago(1),
+    schedule=None,  # ✅ Đổi từ schedule_interval thành schedule
+    start_date=pendulum.today('UTC').add(days=-1),
     tags=['ocr', 'mlops', 'dynamic-loading'],
     catchup=False
 )
