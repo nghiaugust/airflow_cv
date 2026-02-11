@@ -403,5 +403,29 @@ services:
       retries: 3
       start_period: 10s
 
+  # Frontend - Giao diện người dùng
+  frontend:
+    build: .
+    command: streamlit run src/frontend/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src:/app/src
+      - ./data:/data
+    environment:
+      - PYTHONPATH=/app
+    restart: always
+    depends_on:
+      - airflow-webserver
+      - api-preprocessing
+      - api-recognition
+      - api-postprocessing
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
 volumes:
   postgres-db-volume:
