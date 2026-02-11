@@ -45,23 +45,13 @@ def process():
         return jsonify({"error": f"Model {model_name} not loaded. Please load it first"}), 400
     
     # TODO: Xử lý hậu kỳ thật khi cần (extract fields từ JSON)
-    # Hiện tại chỉ trả về kết quả giả định
-    output_data = {
-        "invoice_number": "INV-2026-001",
-        "date": "11/02/2026",
-        "total_amount": "1,500,000 VND",
-        "vendor": "ABC Company",
-        "extracted_fields": ["invoice_number", "date", "total_amount", "vendor"]
-    }
-    
-    output_path = input_path.replace('.json', '_final.json')
+    # Trả về cấu trúc generic có thể dùng cho mọi loại model
     
     return jsonify({
         "status": "success",
-        "input_path": input_path,
-        "output_path": output_path,
         "model_used": model_name,
-        "result": output_data
+        "data": None,
+        "message": "Postprocessing completed (no actual processing implemented yet)"
     })
 
 @app.route('/unload_model', methods=['POST'])

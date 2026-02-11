@@ -79,7 +79,8 @@ def ocr_pipeline():
         )
         
         logging.info(f"Preprocessing Output: {result}")
-        return result.get('output_path') # Trả về đường dẫn ảnh sạch để task sau dùng
+        # Trả về image_path để task sau dùng (hoặc output_path nếu có)
+        return result.get('output_path') or image_path
 
     # --- TASK 2: NHẬN DIỆN (RECOGNITION) ---
     @task(task_id="recognition_step")
@@ -99,11 +100,12 @@ def ocr_pipeline():
         )
         
         logging.info(f"Recognition Output: {result}")
-        return result.get('raw_json_path') # Trả về đường dẫn file JSON kết quả thô
+        # Trả về data hoặc một placeholder để task sau có thể xử lý
+        return result.get('data')
 
     # --- TASK 3: HẬU XỬ LÝ (POSTPROCESSING) ---
     @task(task_id="postprocessing_step")
-    def post_process(raw_json_path, **context):
+    def post_process(recognition_data, **context):
         conf = context['dag_run'].conf
         model_name = conf.get('postprocess_model', 'regex_invoice_vn')
         
@@ -114,7 +116,7 @@ def ocr_pipeline():
         result = call_api_step(
             settings.POST_URL, 
             "process", 
-            {"input_path": raw_json_path, "model_name": model_name}, 
+            {"input_path": recognition_data, "model_name": model_name}, 
             "Post-Exec"
         )
         
@@ -123,14 +125,14 @@ def ocr_pipeline():
 
     # --- ĐỊNH NGHĨA LUỒNG DỮ LIỆU (DATA FLOW) ---
     
-    # Task 1 chạy -> kết quả (path ảnh) truyền vào Task 2
-    clean_img_path = preprocess_image()
+    # Task 1 chạy -> kết quả truyền vào Task 2
+    step1_output = preprocess_image()
     
-    # Task 2 chạy -> kết quả (path json) truyền vào Task 3
-    json_result_path = recognize_text(clean_img_path)
+    # Task 2 chạy -> kết quả truyền vào Task 3
+    step2_output = recognize_text(step1_output)
     
     # Task 3 chạy -> Ra kết quả cuối cùng
-    final_output = post_process(json_result_path)
+    final_output = post_process(step2_output)
 
 # Khởi tạo DAG
 ocr_dag = ocr_pipeline()

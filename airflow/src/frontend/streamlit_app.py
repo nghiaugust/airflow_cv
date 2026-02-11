@@ -20,7 +20,6 @@ DATA_DIR = "/data"
 # Cấu hình trang
 st.set_page_config(
     page_title="OCR System",
-    page_icon="📄",
     layout="wide"
 )
 
@@ -47,7 +46,7 @@ def trigger_airflow_dag(image_filename, config):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        st.error(f"❌ Lỗi khi trigger DAG: {str(e)}")
+        st.error(f"Lỗi khi trigger DAG: {str(e)}")
         return None
 
 def get_dag_run_status(dag_run_id):
@@ -62,7 +61,7 @@ def get_dag_run_status(dag_run_id):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        st.error(f"❌ Lỗi khi kiểm tra status: {str(e)}")
+        st.error(f"Lỗi khi kiểm tra status: {str(e)}")
         return None
 
 def get_task_logs(dag_run_id, task_id):
@@ -81,36 +80,39 @@ def get_task_logs(dag_run_id, task_id):
         return None
 
 # Header
-st.title("📄 Hệ thống OCR Tự động")
+st.title("Hệ thống OCR Tự động")
 st.markdown("### Upload ảnh hóa đơn/tài liệu và nhận kết quả trích xuất thông tin")
 
 # Sidebar - Cấu hình
 with st.sidebar:
-    st.header("⚙️ Cấu hình")
+    st.header("Cấu hình")
     
     preprocess_model = st.selectbox(
         "Model tiền xử lý",
-        ["default_binarize", "advanced_denoise", "adaptive_threshold"]
+        ["Không", "default_binarize", "advanced_denoise", "adaptive_threshold"],
+        index=0
     )
     
     recognition_model = st.selectbox(
         "Model nhận dạng",
-        ["trocr_base", "trocr_large", "easyocr_vn", "paddleocr"]
+        ["Không", "trocr_base", "trocr_large", "easyocr_vn", "paddleocr"],
+        index=0
     )
     
     postprocess_model = st.selectbox(
         "Model hậu xử lý",
-        ["regex_invoice_vn", "regex_invoice_en", "llm_extract"]
+        ["Không", "regex_invoice_vn", "regex_invoice_en", "llm_extract"],
+        index=0
     )
     
     st.markdown("---")
-    st.caption(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    st.caption(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # Main content
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.subheader("📤 Upload ảnh")
+    st.subheader("Upload ảnh")
     
     uploaded_file = st.file_uploader(
         "Chọn ảnh (JPG, PNG)",
@@ -130,18 +132,24 @@ with col1:
         with open(filepath, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        st.success(f"✅ Đã lưu: {filename}")
+        st.success(f"Đã lưu: {filename}")
         
         # Nút xử lý
-        if st.button("🚀 Bắt đầu xử lý OCR", type="primary", use_column_width=True):
-            config = {
-                "preprocess_model": preprocess_model,
-                "recognition_model": recognition_model,
-                "postprocess_model": postprocess_model
-            }
-            
-            with st.spinner("⏳ Đang gửi yêu cầu đến Airflow..."):
-                result = trigger_airflow_dag(filename, config)
+        if st.button("Bắt đầu xử lý OCR", type="primary"):
+            # Kiểm tra nếu không chọn model nào
+            if preprocess_model == "Không" and recognition_model == "Không" and postprocess_model == "Không":
+                st.session_state.no_model_selected = True
+                st.session_state.processing = False
+                st.rerun()
+            else:
+                config = {
+                    "preprocess_model": preprocess_model if preprocess_model != "Không" else "default_binarize",
+                    "recognition_model": recognition_model if recognition_model != "Không" else "trocr_base",
+                    "postprocess_model": postprocess_model if postprocess_model != "Không" else "regex_invoice_vn"
+                }
+                
+                with st.spinner("Đang gửi yêu cầu đến Airflow..."):
+                    result = trigger_airflow_dag(filename, config)
             
             if result:
                 dag_run_id = result.get("dag_run_id")
@@ -150,10 +158,14 @@ with col1:
                 st.rerun()
 
 with col2:
-    st.subheader("📊 Kết quả")
+    st.subheader("Kết quả")
     
+    # Kiểm tra nếu không chọn model nào
+    if "no_model_selected" in st.session_state and st.session_state.no_model_selected:
+        st.warning("Không có mô hình nào được chọn để xử lý")
+        st.session_state.no_model_selected = False
     # Kiểm tra nếu đang xử lý
-    if "processing" in st.session_state and st.session_state.processing:
+    elif "processing" in st.session_state and st.session_state.processing:
         dag_run_id = st.session_state.dag_run_id
         
         # Progress bar
@@ -170,46 +182,31 @@ with col2:
                 
                 if state == "success":
                     progress_bar.progress(100)
-                    status_text.success("✅ Xử lý hoàn tất!")
+                    status_text.success("Xử lý hoàn tất!")
                     
                     # Lấy kết quả từ logs của task cuối
                     logs = get_task_logs(dag_run_id, "postprocessing_step")
                     
-                    # Parse kết quả (giả định có trong logs)
-                    st.markdown("### 📋 Thông tin trích xuất")
+                    st.markdown("### Kết quả xử lý")
                     
-                    # Mock result (TODO: parse từ logs thật)
-                    result_data = {
-                        "invoice_number": "INV-2026-001",
-                        "date": "11/02/2026",
-                        "total_amount": "1,500,000 VND",
-                        "vendor": "ABC Company"
-                    }
+                    # Hiển thị thông báo hoàn thành
+                    st.info("Pipeline đã chạy thành công qua 3 bước: Preprocessing → Recognition → Postprocessing")
                     
-                    # Hiển thị dạng bảng
-                    for key, value in result_data.items():
-                        st.metric(label=key.replace("_", " ").title(), value=value)
+                    # Hiển thị logs nếu có
+                    if logs:
+                        with st.expander("Xem logs chi tiết"):
+                            st.code(logs, language="log")
                     
-                    # Hiển thị JSON
-                    with st.expander("🔍 Xem JSON chi tiết"):
-                        st.json(result_data)
-                    
-                    # Download button
-                    st.download_button(
-                        label="💾 Tải xuống kết quả (JSON)",
-                        data=json.dumps(result_data, indent=2, ensure_ascii=False),
-                        file_name=f"ocr_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json"
-                    )
+                    st.caption("Lưu ý: Hiện tại các API chỉ thực hiện skeleton processing. Cần implement logic thật vào src/core/")
                     
                     st.session_state.processing = False
                     break
                     
                 elif state == "failed":
                     progress_bar.progress(100)
-                    status_text.error("❌ Xử lý thất bại!")
+                    status_text.error("Xử lý thất bại!")
                     
-                    with st.expander("🔍 Xem logs lỗi"):
+                    with st.expander("Xem logs lỗi"):
                         for task in ["preprocessing_step", "recognition_step", "postprocessing_step"]:
                             logs = get_task_logs(dag_run_id, task)
                             if logs:
@@ -221,25 +218,25 @@ with col2:
                 elif state == "running":
                     progress = min(30 + attempt * 2, 90)
                     progress_bar.progress(progress)
-                    status_text.info(f"⏳ Đang xử lý... ({state})")
+                    status_text.info(f"Đang xử lý... ({state})")
                 
             time.sleep(5)  # Đợi 5 giây trước khi check lại
         
         else:
             # Timeout
-            status_text.warning("⚠️ Timeout! Vui lòng kiểm tra Airflow UI để xem chi tiết.")
+            status_text.warning("Timeout! Vui lòng kiểm tra Airflow UI để xem chi tiết.")
             st.session_state.processing = False
     
     else:
-        st.info("👆 Upload ảnh và nhấn 'Bắt đầu xử lý' để xem kết quả")
+        st.info("Upload ảnh và nhấn 'Bắt đầu xử lý' để xem kết quả")
 
 # Footer
 st.markdown("---")
 col_a, col_b, col_c = st.columns(3)
 with col_a:
-    st.caption("🔗 [Airflow UI](http://localhost:8080)")
+    st.caption("[Airflow UI](http://localhost:8080)")
 with col_b:
-    st.caption("📊 [API Health Check](http://localhost:5000/health)")
+    st.caption("[API Health Check](http://localhost:5000/health)")
 with col_c:
-    if st.button("🔄 Làm mới trang"):
+    if st.button("Làm mới trang"):
         st.rerun()

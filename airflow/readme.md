@@ -136,8 +136,10 @@ docker-compose down -v
 
 ## Ghi chú
 
-- Hiện tại các API chỉ trả về kết quả giả định (mock data)
-- Chưa triển khai logic nạp model thật
+- Các API hiện tại chỉ trả về skeleton response với `data: null`
+- Không có dữ liệu hard-coded - tất cả trả về `null` cho đến khi implement logic thật
+- JSON response schema được thiết kế generic để hỗ trợ nhiều loại model
+- Xem chi tiết API schema tại: [API_SCHEMA.md](API_SCHEMA.md)
 - Để thêm model thật, cần cập nhật code trong `src/core/` và API services
 
 ## Kiến trúc hệ thống

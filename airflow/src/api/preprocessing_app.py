@@ -45,14 +45,13 @@ def process():
         return jsonify({"error": f"Model {model_name} not loaded. Please load it first"}), 400
     
     # TODO: Xử lý ảnh thật khi cần
-    # Hiện tại chỉ trả về đường dẫn giả định
-    output_path = image_path.replace('.jpg', '_preprocessed.jpg').replace('.png', '_preprocessed.png')
+    # Hiện tại trả về None vì chưa có logic xử lý
     
     return jsonify({
         "status": "success",
-        "input_path": image_path,
-        "output_path": output_path,
-        "model_used": model_name
+        "model_used": model_name,
+        "output_path": None,
+        "message": "Preprocessing completed (no actual processing implemented yet)"
     })
 
 @app.route('/unload_model', methods=['POST'])

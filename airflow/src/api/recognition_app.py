@@ -55,14 +55,11 @@ def predict():
     # model_instance = active_models[model_name]
     # result = model_instance.predict(image_path)
     
-    # Hiện tại trả về kết quả giả định
-    output_path = image_path.replace('.jpg', '_ocr.json').replace('.png', '_ocr.json')
-    
     return jsonify({
         "status": "success",
-        "raw_json_path": output_path,
         "model_used": model_name,
-        "text_detected": "Sample OCR text result"
+        "data": None,
+        "message": "Recognition completed (no actual model implemented yet)"
     })
 
 @app.route('/unload_model', methods=['POST'])
